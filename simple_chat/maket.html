@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <h2>VS Code Extension Info</h2>
+    <div id="extension-info">
+        <p>Loading...</p>
+    </div>
+    <script>
+        fetch('http://localhost:5000/scrape')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('extension-info').innerHTML = `<p>Error: ${data.error}</p>`;
+                } else {
+                    document.getElementById('extension-info').innerHTML = `
+                        <strong>Title:</strong> ${data.title}<br>
+                        <strong>Publisher:</strong> ${data.publisher}<br>
+                        <strong>Description:</strong> ${data.description}<br>
+                        <strong>Installs:</strong> ${data.installs}<br>
+                    `;
+                }
+            })
+            .catch(err => {
+                document.getElementById('extension-info').innerHTML = `<p>Failed to fetch data.</p>`;
+            });
+    </script>
+</body>
+
+</html>
