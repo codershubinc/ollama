@@ -126,7 +126,9 @@
           </label>
 
           <!-- Aggregate toggle: use non-streaming aggregation endpoint -->
-          <label class="ml-3 cursor-pointer flex items-center text-xs text-slate-400 gap-2">
+          <label
+            class="ml-3 cursor-pointer flex items-center text-xs text-slate-400 gap-2"
+          >
             <input type="checkbox" id="aggregateToggle" />
             <span>Aggregate (single-response)</span>
           </label>
@@ -222,13 +224,18 @@
         savePreferences();
       });
 
-      const aggregateToggle = document.getElementById('aggregateToggle');
+      const aggregateToggle = document.getElementById("aggregateToggle");
       // Restore aggregate state if saved
       try {
-        const savedAgg = localStorage.getItem('aggregate_mode');
-        if (savedAgg === 'true') aggregateToggle.checked = true;
+        const savedAgg = localStorage.getItem("aggregate_mode");
+        if (savedAgg === "true") aggregateToggle.checked = true;
       } catch (e) {}
-      aggregateToggle.addEventListener('change', () => { localStorage.setItem('aggregate_mode', aggregateToggle.checked ? 'true' : 'false'); });
+      aggregateToggle.addEventListener("change", () => {
+        localStorage.setItem(
+          "aggregate_mode",
+          aggregateToggle.checked ? "true" : "false"
+        );
+      });
 
       // Auto-resize Textarea
       promptInput.addEventListener("input", function () {
@@ -279,10 +286,10 @@
         // If JSON mode is selected, use the dedicated /api/chat/json endpoint (single-response)
         if (isJson) {
           try {
-            assistantBubble.innerHTML = '';
-            const resp = await fetch('/api/chat/json', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            assistantBubble.innerHTML = "";
+            const resp = await fetch("/api/chat/json", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ model, message: text }),
             });
 
@@ -294,8 +301,8 @@
           } catch (err) {
             assistantBubble.innerHTML = `<div class="text-red-400 flex items-center gap-2"><i class="fa-solid fa-circle-exclamation"></i> Error: ${err.message}</div>`;
           } finally {
-            sendBtn.classList.remove('hidden');
-            stopBtn.classList.add('hidden');
+            sendBtn.classList.remove("hidden");
+            stopBtn.classList.add("hidden");
           }
 
           return;
@@ -305,11 +312,11 @@
         const useAggregate = aggregateToggle.checked;
         if (useAggregate) {
           try {
-            assistantBubble.innerHTML = '';
+            assistantBubble.innerHTML = "";
             const aggPayload = Object.assign({}, payload, { stream: false });
-            const resp = await fetch('/api/generate/aggregate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            const resp = await fetch("/api/generate/aggregate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify(aggPayload),
             });
 
@@ -317,12 +324,11 @@
 
             const text = await resp.text();
             assistantBubble.innerHTML = formatMarkdown(text);
-
           } catch (err) {
             assistantBubble.innerHTML = `<div class="text-red-400 flex items-center gap-2"><i class="fa-solid fa-circle-exclamation"></i> Error: ${err.message}</div>`;
           } finally {
-            sendBtn.classList.remove('hidden');
-            stopBtn.classList.add('hidden');
+            sendBtn.classList.remove("hidden");
+            stopBtn.classList.add("hidden");
           }
 
           return;
@@ -469,21 +475,32 @@
       }
 
       function escapeHtml(unsafe) {
-        if (unsafe === null || unsafe === undefined) return '';
+        if (unsafe === null || unsafe === undefined) return "";
         return String(unsafe)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/\"/g, '&quot;')
-          .replace(/'/g, '&#039;');
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#039;");
       }
 
       function renderJsonOutput(jsonLines) {
         const latest = jsonLines[jsonLines.length - 1] || {};
         window._latestJson = latest;
         const pretty = escapeHtml(JSON.stringify(latest, null, 2));
-        const contextNote = latest && latest.context ? `<div class="text-xs text-slate-400 mb-2">Context length: ${Array.isArray(latest.context) ? latest.context.length : 'N/A'}</div>` : '';
-        const emptyNote = (latest && (latest.response === '' || latest.response === null || latest.response === undefined)) ? '<div class="text-xs text-yellow-300 mb-2">Note: the `response` field is empty in the latest JSON object.</div>' : '';
+        const contextNote =
+          latest && latest.context
+            ? `<div class="text-xs text-slate-400 mb-2">Context length: ${
+                Array.isArray(latest.context) ? latest.context.length : "N/A"
+              }</div>`
+            : "";
+        const emptyNote =
+          latest &&
+          (latest.response === "" ||
+            latest.response === null ||
+            latest.response === undefined)
+            ? '<div class="text-xs text-yellow-300 mb-2">Note: the `response` field is empty in the latest JSON object.</div>'
+            : "";
         return `
           <div>
             <div class="flex justify-between items-center mb-2">
@@ -507,11 +524,11 @@
         if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(txt);
         } else {
-          const ta = document.createElement('textarea');
+          const ta = document.createElement("textarea");
           ta.value = txt;
           document.body.appendChild(ta);
           ta.select();
-          document.execCommand('copy');
+          document.execCommand("copy");
           ta.remove();
         }
       }
