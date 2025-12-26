@@ -1,36 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url=/maket">
+    <title>Redirecting…</title>
+    <style>
+        body {
+            font-family: Inter, Arial;
+            margin: 40px;
+            color: #e6eef6;
+            background: #07111a
+        }
+    </style>
 </head>
 
 <body>
-    <h2>VS Code Extension Info</h2>
-    <div id="extension-info">
-        <p>Loading...</p>
-    </div>
-    <script>
-        fetch('http://localhost:5000/scrape')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    document.getElementById('extension-info').innerHTML = `<p>Error: ${data.error}</p>`;
-                } else {
-                    document.getElementById('extension-info').innerHTML = `
-                        <strong>Title:</strong> ${data.title}<br>
-                        <strong>Publisher:</strong> ${data.publisher}<br>
-                        <strong>Description:</strong> ${data.description}<br>
-                        <strong>Installs:</strong> ${data.installs}<br>
-                    `;
-                }
-            })
-            .catch(err => {
-                document.getElementById('extension-info').innerHTML = `<p>Failed to fetch data.</p>`;
-            });
-    </script>
+    <p>If you are not redirected, <a href="/maket">open the extension info page</a>.</p>
 </body>
 
 </html>

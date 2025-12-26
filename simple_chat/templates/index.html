@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ollama Chat</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              gray: {
+                850: "#1f2937",
+                900: "#0f172a", // Slate 900
+                950: "#020617",
+              },
+            },
+            animation: {
+              "fade-in": "fadeIn 0.3s ease-out forwards",
+              "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+            },
+            keyframes: {
+              fadeIn: {
+                "0%": { opacity: "0", transform: "translateY(10px)" },
+                "100%": { opacity: "1", transform: "translateY(0)" },
+              },
+            },
+          },
+        },
+      };
+    </script>
+
+    <style>
+      /* Scrollbar customization */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+
+      .glass-header {
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gray-950 text-slate-200 h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white"
+  >
+    <header
+      class="glass-header border-b border-gray-800 absolute top-0 w-full z-20 transition-all duration-300"
+    >
+      <div
+        class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20"
+          >
+            <i class="fa-solid fa-robot text-white text-sm"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-lg tracking-tight text-white">
+              Ollama UI
+            </h1>
+            <div class="flex items-center gap-2">
+              <span
+                class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
+              ></span>
+              <span
+                class="text-[10px] text-slate-400 font-medium uppercase tracking-wider"
+                >Local Connection</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 text-sm">
+          <div
+            class="hidden md:flex items-center bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5"
+          >
+            <i class="fa-solid fa-microchip text-slate-500 mr-2 text-xs"></i>
+            <select
+              id="model"
+              class="bg-transparent text-slate-300 focus:outline-none text-xs font-medium cursor-pointer"
+            >
+              <option value="gemma3">Gemma 3</option>
+              <option value="deepseek-r1:14b">DeepSeek R1</option>
+              <option value="llama3">Llama 3</option>
+              <option value="mistral">Mistral</option>
+            </select>
+          </div>
+
+          <label class="cursor-pointer group relative flex items-center">
+            <input type="checkbox" id="jsonMode" class="peer sr-only" />
+            <div
+              class="w-16 h-8 bg-gray-900 border border-gray-800 rounded-full peer-checked:border-emerald-500/50 peer-checked:bg-gray-900 transition-all"
+            ></div>
+            <div
+              class="absolute left-1 top-1 w-6 h-6 bg-slate-600 rounded-full transition-all peer-checked:left-9 peer-checked:bg-emerald-500 flex items-center justify-center text-[10px] text-white font-bold"
+            >
+              TXT
+            </div>
+            <div
+              class="hidden peer-checked:flex absolute left-2 text-[8px] text-emerald-500 font-bold uppercase tracking-wider"
+            >
+              JSON
+            </div>
+          </label>
+
+          <!-- Aggregate toggle: use non-streaming aggregation endpoint -->
+          <label class="ml-3 cursor-pointer flex items-center text-xs text-slate-400 gap-2">
+            <input type="checkbox" id="aggregateToggle" />
+            <span>Aggregate (single-response)</span>
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <main
+      id="chat"
+      class="flex-1 overflow-y-auto pt-24 pb-32 px-4 scroll-smooth"
+    >
+      <div class="max-w-3xl mx-auto flex flex-col gap-6">
+        <div
+          id="welcome"
+          class="flex flex-col items-center justify-center py-20 text-center opacity-100 transition-opacity duration-500"
+        >
+          <div
+            class="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-6 shadow-xl shadow-black/50"
+          >
+            <i class="fa-regular fa-comments text-3xl text-slate-600"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-white mb-2">
+            How can I help today?
+          </h2>
+          <p class="text-slate-500 max-w-md">
+            I'm running locally on your machine. No data leaves this server.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <div
+      class="fixed bottom-0 w-full bg-gradient-to-t from-gray-950 via-gray-950 to-transparent pt-10 pb-6 z-20"
+    >
+      <div class="max-w-3xl mx-auto px-4">
+        <div class="relative group">
+          <div
+            class="relative bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800 ring-1 ring-white/5 shadow-2xl shadow-black/50 transition-all focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50"
+          >
+            <textarea
+              id="prompt"
+              rows="1"
+              placeholder="Message Ollama..."
+              class="w-full bg-transparent text-slate-200 placeholder-slate-500 px-5 py-4 pr-32 rounded-2xl focus:outline-none resize-none overflow-hidden min-h-[56px] max-h-48 leading-relaxed"
+            ></textarea>
+
+            <div class="absolute right-2 bottom-2 flex gap-2">
+              <button
+                id="stopBtn"
+                onclick="stopGeneration()"
+                class="hidden px-3 py-2 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 transition-all text-xs font-semibold uppercase tracking-wide border border-red-500/20"
+              >
+                Stop
+              </button>
+              <button
+                id="sendBtn"
+                onclick="sendPrompt()"
+                class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+            </div>
+          </div>
+          <div class="text-center mt-3">
+            <p class="text-[10px] text-slate-600">
+              AI can make mistakes. Please verify important information.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // State
+      let controller = new AbortController();
+      let context = [];
+      const chatContainer = document.getElementById("chat");
+      const welcomeDiv = document.getElementById("welcome");
+      const promptInput = document.getElementById("prompt");
+      const sendBtn = document.getElementById("sendBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const jsonToggle = document.getElementById("jsonMode");
+      const jsonLabel =
+        jsonToggle.parentElement.querySelector(".absolute.left-1"); // The bubble
+
+      // JSON Toggle UI Logic
+      jsonToggle.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          jsonLabel.textContent = "{}";
+        } else {
+          jsonLabel.textContent = "TXT";
+        }
+        savePreferences();
+      });
+
+      const aggregateToggle = document.getElementById('aggregateToggle');
+      // Restore aggregate state if saved
+      try {
+        const savedAgg = localStorage.getItem('aggregate_mode');
+        if (savedAgg === 'true') aggregateToggle.checked = true;
+      } catch (e) {}
+      aggregateToggle.addEventListener('change', () => { localStorage.setItem('aggregate_mode', aggregateToggle.checked ? 'true' : 'false'); });
+
+      // Auto-resize Textarea
+      promptInput.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = this.scrollHeight + "px";
+      });
+
+      // Submit on Enter (Shift+Enter for new line)
+      promptInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendPrompt();
+        }
+      });
+
+      async function sendPrompt() {
+        const text = promptInput.value.trim();
+        if (!text) return;
+
+        // UI Reset
+        welcomeDiv.style.display = "none";
+        promptInput.value = "";
+        promptInput.style.height = "auto";
+        sendBtn.classList.add("hidden");
+        stopBtn.classList.remove("hidden");
+
+        // Add User Message
+        addMessage(text, "user");
+
+        // Add Assistant Placeholder
+        const assistantBubble = addMessage("", "assistant", true);
+
+        // Configuration
+        controller = new AbortController();
+        const model = document.getElementById("model").value;
+        const isJson = jsonToggle.checked;
+
+        const payload = {
+          model: model,
+          prompt: text,
+          stream: true,
+          meta: { response_mode: isJson ? "json" : "text" },
+        };
+
+        if (isJson) payload.format = "json";
+        if (context.length) payload.context = context;
+
+        // If JSON mode is selected, use the dedicated /api/chat/json endpoint (single-response)
+        if (isJson) {
+          try {
+            assistantBubble.innerHTML = '';
+            const resp = await fetch('/api/chat/json', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model, message: text }),
+            });
+
+            if (!resp.ok) throw new Error(resp.statusText);
+
+            const data = await resp.json();
+            assistantBubble.innerHTML = renderJsonOutput([data]);
+            if (data.context) context = data.context;
+          } catch (err) {
+            assistantBubble.innerHTML = `<div class="text-red-400 flex items-center gap-2"><i class="fa-solid fa-circle-exclamation"></i> Error: ${err.message}</div>`;
+          } finally {
+            sendBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+          }
+
+          return;
+        }
+
+        // If aggregate mode is enabled for text, call the aggregate endpoint and show a single response
+        const useAggregate = aggregateToggle.checked;
+        if (useAggregate) {
+          try {
+            assistantBubble.innerHTML = '';
+            const aggPayload = Object.assign({}, payload, { stream: false });
+            const resp = await fetch('/api/generate/aggregate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(aggPayload),
+            });
+
+            if (!resp.ok) throw new Error(resp.statusText);
+
+            const text = await resp.text();
+            assistantBubble.innerHTML = formatMarkdown(text);
+
+          } catch (err) {
+            assistantBubble.innerHTML = `<div class="text-red-400 flex items-center gap-2"><i class="fa-solid fa-circle-exclamation"></i> Error: ${err.message}</div>`;
+          } finally {
+            sendBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+          }
+
+          return;
+        }
+
+        // Streaming mode (existing behavior)
+        try {
+          const response = await fetch("/api/generate/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+
+          if (!response.ok) throw new Error(response.statusText);
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = "";
+          let isThinking = true;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const data = JSON.parse(line);
+
+                // Remove Loading Spinner on first chunk
+                if (isThinking) {
+                  assistantBubble.innerHTML = "";
+                  isThinking = false;
+                }
+
+                if (data.response) {
+                  fullText += data.response;
+
+                  if (isJson) {
+                    // Render as Code Block
+                    assistantBubble.innerHTML = `<pre class="font-mono text-xs text-emerald-400 bg-gray-950/50 p-4 rounded-lg border border-emerald-500/20 overflow-x-auto whitespace-pre-wrap">${fullText}</pre>`;
+                  } else {
+                    // Render with Markdown-ish formatting
+                    assistantBubble.innerHTML = formatMarkdown(fullText);
+                  }
+                }
+
+                if (data.done) {
+                  context = data.context;
+                }
+
+                // Auto scroll
+                window.scrollTo(0, document.body.scrollHeight);
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          }
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            assistantBubble.innerHTML = `<div class="text-red-400 flex items-center gap-2"><i class="fa-solid fa-circle-exclamation"></i> Error: ${err.message}</div>`;
+          } else {
+            assistantBubble.insertAdjacentHTML(
+              "beforeend",
+              '<span class="text-yellow-500 text-xs ml-2 opacity-70">[Stopped]</span>'
+            );
+          }
+        } finally {
+          sendBtn.classList.remove("hidden");
+          stopBtn.classList.add("hidden");
+        }
+      }
+
+      function stopGeneration() {
+        controller.abort();
+      }
+
+      function addMessage(text, sender, isLoading = false) {
+        const container = document.querySelector(".max-w-3xl");
+
+        const row = document.createElement("div");
+        row.className = `flex w-full ${
+          sender === "user" ? "justify-end" : "justify-start"
+        } animate-fade-in`;
+
+        const bubble = document.createElement("div");
+
+        if (sender === "user") {
+          bubble.className =
+            "bg-gray-800 text-slate-200 px-5 py-3.5 rounded-2xl rounded-tr-sm max-w-[85%] border border-gray-700 shadow-sm leading-relaxed";
+          bubble.textContent = text;
+        } else {
+          bubble.className =
+            "bg-transparent text-slate-300 px-0 py-2 max-w-full leading-relaxed w-full";
+          if (isLoading) {
+            bubble.innerHTML = `
+                        <div class="flex items-center gap-2 text-slate-500">
+                            <i class="fa-solid fa-circle-notch fa-spin text-indigo-500"></i>
+                            <span class="text-sm">Thinking...</span>
+                        </div>
+                    `;
+          } else {
+            bubble.innerHTML = formatMarkdown(text);
+          }
+        }
+
+        row.appendChild(bubble);
+        container.appendChild(row);
+
+        // Scroll to bottom
+        window.scrollTo(0, document.body.scrollHeight);
+
+        return bubble;
+      }
+
+      function formatMarkdown(text) {
+        // Basic formatting helper
+        let formatted = text
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          // Code blocks
+          .replace(
+            /```([\s\S]*?)```/g,
+            '<pre class="bg-gray-900 border border-gray-800 p-3 rounded-lg my-2 text-xs font-mono text-slate-300 overflow-x-auto"><code>$1</code></pre>'
+          )
+          // Inline code
+          .replace(
+            /`([^`]+)`/g,
+            '<code class="bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono text-indigo-300 border border-gray-700">$1</code>'
+          )
+          // Bold
+          .replace(
+            /\*\*(.*?)\*\*/g,
+            '<strong class="text-white font-semibold">$1</strong>'
+          )
+          // Newlines
+          .replace(/\n/g, "<br>");
+
+        return formatted;
+      }
+
+      function escapeHtml(unsafe) {
+        if (unsafe === null || unsafe === undefined) return '';
+        return String(unsafe)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function renderJsonOutput(jsonLines) {
+        const latest = jsonLines[jsonLines.length - 1] || {};
+        window._latestJson = latest;
+        const pretty = escapeHtml(JSON.stringify(latest, null, 2));
+        const contextNote = latest && latest.context ? `<div class="text-xs text-slate-400 mb-2">Context length: ${Array.isArray(latest.context) ? latest.context.length : 'N/A'}</div>` : '';
+        const emptyNote = (latest && (latest.response === '' || latest.response === null || latest.response === undefined)) ? '<div class="text-xs text-yellow-300 mb-2">Note: the `response` field is empty in the latest JSON object.</div>' : '';
+        return `
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <div>
+                <span class="text-xs text-slate-400">JSON output</span>
+                ${contextNote}
+              </div>
+              <div class="flex gap-2">
+                <button class="px-2 py-1 bg-gray-800 rounded text-sm" onclick="copyLatestJson()">Copy</button>
+              </div>
+            </div>
+            ${emptyNote}
+            <pre class="font-mono text-xs text-emerald-400 bg-gray-950/50 p-4 rounded-lg border border-emerald-500/20 overflow-x-auto whitespace-pre-wrap">${pretty}</pre>
+          </div>
+        `;
+      }
+
+      function copyLatestJson() {
+        if (!window._latestJson) return;
+        const txt = JSON.stringify(window._latestJson, null, 2);
+        if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = txt;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+      }
+    </script>
+  </body>
+</html>
