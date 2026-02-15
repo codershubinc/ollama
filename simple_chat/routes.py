@@ -10,6 +10,7 @@ from database import (
     get_chat_messages, create_message, update_chat_timestamp, get_chat_history
 )
 from ollama_service import stream_ollama_response, get_available_models
+from facts_service import get_random_fact, create_crazy_prompt
 
 api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -76,14 +77,15 @@ def send_message(chat_id):
     data = request.get_json() or {}
     user_message = data.get('message', '').strip()
     model = data.get('model', '')
+    crazy_mode = data.get('crazy_mode', True)  # Default to crazy mode on
     
     if not user_message:
         return jsonify({'error': 'Message required'}), 400
     
     # If no model specified, try to get first available model
-    if not model:
+    if not model or model == '':
         models = get_available_models()
-        if models:
+        if models and len(models) > 0:
             model = models[0]['name']
         else:
             return jsonify({'error': 'No Ollama models available. Please install a model first.'}), 400
@@ -94,7 +96,14 @@ def send_message(chat_id):
     
     # Get conversation history
     history = get_chat_history(chat_id)
-    prompt = history + "Assistant: "
+    
+    # Get random fact and create crazy prompt (only if crazy mode is enabled)
+    fact = None
+    if crazy_mode:
+        fact = get_random_fact()
+        prompt = create_crazy_prompt(history, fact)
+    else:
+        prompt = history + "Assistant: "
     
     # Stream response
     def generate():
@@ -112,6 +121,10 @@ def send_message(chat_id):
             
             # Save complete response when done
             if chunk.get('done'):
+                # Add fact metadata to final chunk
+                if fact:
+                    chunk['fact_used'] = fact
+                yield json.dumps(chunk) + '\n'
                 create_message(chat_id, 'assistant', full_response)
     
     return Response(generate(), content_type='application/x-ndjson')

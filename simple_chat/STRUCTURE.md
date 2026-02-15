@@ -9,6 +9,7 @@ simple_chat/
 ├── app.py                  # Main Flask application & initialization
 ├── database.py             # Database operations (SQLite)
 ├── ollama_service.py       # Ollama API service layer
+├── facts_service.py        # Random facts API & crazy prompts
 ├── routes.py               # API routes (Flask Blueprint)
 ├── requirements.txt        # Python dependencies
 ├── chats.db               # SQLite database (auto-created)
@@ -24,22 +25,26 @@ simple_chat/
 ## Module Descriptions
 
 ### `app.py` (Main Application)
+
 - Initializes Flask app
 - Registers blueprints
 - Database initialization
 - Application entry point
 
 **Key Functions:**
+
 - `initialize_app()` - Sets up database on first run
 
 ---
 
 ### `database.py` (Data Layer)
+
 - All SQLite operations
 - Type-safe functions with type hints
 - Two tables: `chats` and `messages`
 
 **Key Functions:**
+
 - `get_all_chats()` - Fetch all chats
 - `create_chat(title)` - Create new chat
 - `delete_chat(chat_id)` - Delete chat & messages
@@ -50,23 +55,41 @@ simple_chat/
 ---
 
 ### `ollama_service.py` (External API Layer)
+
 - Communication with Ollama API
 - Streaming response handling
 - Model discovery
 
 **Key Functions:**
+
 - `stream_ollama_response(prompt, model)` - Stream AI responses
 - `get_available_models()` - Fetch installed Ollama models
 - `get_ollama_response(prompt, model)` - Non-streaming response
 
 ---
 
+### `facts_service.py` (External Facts API)
+
+- Fetches random facts from external API
+- Creates creative "crazy mode" prompts
+- Blends facts into conversation context
+
+**Key Functions:**
+
+- `get_random_fact()` - Fetch random fact from API
+- `create_crazy_prompt(history, fact)` - Build prompt with fact influence
+- `inject_fact_into_response(text, fact)` - (Optional) Add fact references
+
+---
+
 ### `routes.py` (API Layer)
+
 - Flask Blueprint with REST endpoints
 - Request/response handling
 - Coordinates between database and Ollama service
 
 **Endpoints:**
+
 - `GET /api/models` - List available models
 - `GET /api/chats` - List all chats
 - `POST /api/chats` - Create new chat
@@ -78,16 +101,20 @@ simple_chat/
 ---
 
 ### `chat.html` (Frontend)
+
 - Modern dark theme with Tailwind CSS
 - Real-time message streaming
 - Responsive sidebar
 - Dynamic model loading
+- Crazy mode toggle & fact display
 
 **Features:**
+
 - Auto-loads available Ollama models
 - Creates/manages multiple chats
 - Formats messages with proper styling
 - Smooth scrolling & animations
+- Shows fact influences when crazy mode is on
 
 ---
 

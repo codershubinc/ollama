@@ -56,10 +56,26 @@
             }
         }
 
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .loading-shimmer {
             background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
             background-size: 1000px 100%;
             animation: shimmer 2s infinite;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
         }
 
         .chat-scroll {
@@ -129,6 +145,19 @@
                         class="bg-dark-surface2 text-gray-300 px-3 py-2 rounded-lg border border-dark-border text-sm focus:outline-none focus:border-purple-600">
                         <option value="">Loading models...</option>
                     </select>
+
+                    <label class="cursor-pointer flex items-center gap-2 relative"
+                        title="Crazy Mode: Blend random facts into responses">
+                        <input type="checkbox" id="crazyMode" class="peer sr-only" checked />
+                        <div
+                            class="w-12 h-6 bg-dark-surface2 border border-dark-border rounded-full peer-checked:border-purple-600 peer-checked:bg-purple-600/20 transition-all">
+                        </div>
+                        <div
+                            class="absolute left-0.5 w-5 h-5 bg-gray-600 rounded-full transition-all peer-checked:translate-x-6 peer-checked:bg-purple-500 flex items-center justify-center text-[8px]">
+                            🤪
+                        </div>
+                        <span class="text-xs text-gray-500">Crazy</span>
+                    </label>
 
                     <button onclick="deleteCurrentChat()" id="deleteBtn"
                         class="hidden text-red-400 hover:text-red-300 p-2">
@@ -205,10 +234,13 @@
 
                 const select = document.getElementById('modelSelect');
 
-                if (models.length === 0 || models.error) {
+                if (!models || models.length === 0 || models.error) {
+                    console.warn('No models available, using fallback');
                     select.innerHTML = '<option value="llama3">llama3 (default)</option>';
                     return;
                 }
+
+                console.log('Loaded models:', models);
 
                 select.innerHTML = models.map((model, index) => {
                     const name = model.name;
@@ -218,6 +250,8 @@
                     return `<option value="${name}" ${index === 0 ? 'selected' : ''}>${label}</option>`;
                 }).join('');
 
+                console.log('First model selected:', select.value);
+
             } catch (error) {
                 console.error('Failed to load models:', error);
                 const select = document.getElementById('modelSelect');
@@ -226,7 +260,7 @@
         }
 
         // ========================================================================
-        // MODEL MANAGEMENT
+        // CHAT MANAGEMENT
         // ========================================================================
 
         async function loadModels() {
@@ -414,7 +448,7 @@
                         ` : ''}
                         <div class="${isUser ? 'bg-purple-600 text-white' : 'bg-dark-surface2 text-gray-200'} 
                             px-4 py-3 rounded-2xl ${isUser ? 'rounded-tr-sm' : 'rounded-tl-sm'}">
-                            <div class="text-sm whitespace-pre-wrap">${escapeHtml(msg.content)}</div>
+                            <div class="text-sm ${isUser ? 'whitespace-pre-wrap' : ''}">${isUser ? escapeHtml(msg.content) : formatMarkdown(msg.content)}</div>
                         </div>
                     </div>
                 </div>
@@ -464,14 +498,32 @@
             scrollToBottom();
 
             // Send to API
-            const model = document.getElementById('modelSelect').value;
+            const modelSelect = document.getElementById('modelSelect');
+            const model = modelSelect.value;
+            const crazyMode = document.getElementById('crazyMode').checked;
+
+            console.log('Sending message with model:', model);
+
+            // Ensure we have a model selected
+            if (!model || model === '') {
+                console.error('No model selected');
+                document.getElementById(loadingId).innerHTML = `
+                    <div class="bg-red-900/20 border border-red-900/50 text-red-400 px-4 py-3 rounded-lg">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        No model selected. Please select a model from the dropdown.
+                    </div>
+                `;
+                toggleSendButton(true);
+                return;
+            }
+
             abortController = new AbortController();
 
             try {
                 const response = await fetch(`/api/chats/${currentChatId}/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message, model }),
+                    body: JSON.stringify({ message, model, crazy_mode: crazyMode }),
                     signal: abortController.signal
                 });
 
@@ -497,12 +549,17 @@
                             </div>
                             <div class="bg-dark-surface2 text-gray-200 px-4 py-3 rounded-2xl rounded-tl-sm">
                                 <div class="text-sm whitespace-pre-wrap" id="${assistantId}-content"></div>
+                                <div id="${assistantId}-fact" class="hidden mt-3 pt-3 border-t border-gray-700/50 text-xs text-purple-400 italic">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <span></span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
 
                 const contentDiv = document.getElementById(`${assistantId}-content`);
+                const factDiv = document.getElementById(`${assistantId}-fact`);
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -524,7 +581,17 @@
 
                             if (data.response) {
                                 fullResponse += data.response;
-                                contentDiv.textContent = fullResponse;
+                                contentDiv.innerHTML = formatMarkdown(fullResponse);
+                                scrollToBottom();
+                            }
+
+                            // Display fact when response is complete
+                            if (data.done && data.fact_used) {
+                                const fact = data.fact_used;
+                                factDiv.querySelector('span').textContent =
+                                    `Secretly influenced by: "${fact.fact}" (${fact.animal})`;
+                                factDiv.classList.remove('hidden');
+                                factDiv.classList.add('animate-fade-in');
                                 scrollToBottom();
                             }
                         } catch (e) {
@@ -610,6 +677,36 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function formatMarkdown(text) {
+            // Escape HTML first
+            let html = escapeHtml(text);
+
+            // Code blocks (```code```)
+            html = html.replace(/```([\s\S]*?)```/g,
+                '<pre class="bg-gray-900 border border-gray-700 px-3 py-2 rounded-lg my-2 text-xs font-mono overflow-x-auto"><code>$1</code></pre>');
+
+            // Inline code (`code`)
+            html = html.replace(/`([^`]+)`/g,
+                '<code class="bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono text-purple-300">$1</code>');
+
+            // Bold (**text** or __text__)
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
+            html = html.replace(/__(.+?)__/g, '<strong class="font-semibold text-white">$1</strong>');
+
+            // Italic (*text* or _text_)
+            html = html.replace(/\*(.+?)\*/g, '<em class="italic">$1</em>');
+            html = html.replace(/_(.+?)_/g, '<em class="italic">$1</em>');
+
+            // Links [text](url)
+            html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g,
+                '<a href="$2" target="_blank" class="text-purple-400 hover:text-purple-300 underline">$1</a>');
+
+            // Line breaks
+            html = html.replace(/\n/g, '<br>');
+
+            return html;
         }
 
         function formatDate(dateString) {

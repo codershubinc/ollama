@@ -73,3 +73,24 @@ def get_ollama_response(prompt: str, model: str = 'llama3') -> str:
             full_response += chunk['response']
     
     return full_response
+
+def get_available_models() -> List[Dict[str, Any]]:
+    """
+    Get list of available Ollama models
+    
+    Returns:
+        List of model dictionaries with name and details
+    """
+    try:
+        response = requests.get(OLLAMA_TAGS_URL, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            models = data.get('models', [])
+            # Extract just the names and size
+            return [{'name': m['name'], 'size': m.get('size', 0)} for m in models]
+        return []
+    except requests.exceptions.ConnectionError:
+        return []
+    except Exception as e:
+        print(f"Error fetching models: {e}")
+        return []
