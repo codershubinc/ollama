@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat - Local AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0a0a0a',
+                            surface: '#141414',
+                            surface2: '#1e1e1e',
+                            border: '#2a2a2a',
+                            hover: '#252525'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -1000px 0;
+            }
+
+            100% {
+                background-position: 1000px 0;
+            }
+        }
+
+        .loading-shimmer {
+            background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
+            background-size: 1000px 100%;
+            animation: shimmer 2s infinite;
+        }
+
+        .chat-scroll {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+
+<body class="bg-dark-bg text-gray-200 h-screen overflow-hidden">
+
+    <!-- Main Container -->
+    <div class="flex h-screen">
+
+        <!-- Sidebar -->
+        <div id="sidebar"
+            class="w-64 bg-dark-surface border-r border-dark-border flex flex-col transition-all duration-300">
+            <!-- Sidebar Header -->
+            <div class="p-4 border-b border-dark-border">
+                <div class="flex items-center gap-3 mb-4">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-robot text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg text-white">Ollama Chat</h1>
+                        <p class="text-xs text-gray-500">Local AI</p>
+                    </div>
+                </div>
+                <button onclick="createNewChat()"
+                    class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium">
+                    <i class="fas fa-plus"></i>
+                    New Chat
+                </button>
+            </div>
+
+            <!-- Chat List -->
+            <div id="chatList" class="flex-1 overflow-y-auto p-2">
+                <!-- Chats loaded dynamically -->
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="p-4 border-t border-dark-border">
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Ollama Connected</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="flex-1 flex flex-col">
+
+            <!-- Chat Header -->
+            <div class="bg-dark-surface border-b border-dark-border px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar()" class="lg:hidden text-gray-400 hover:text-white">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div>
+                        <h2 id="chatTitle" class="text-lg font-semibold text-white">Select a chat</h2>
+                        <p id="chatSubtitle" class="text-xs text-gray-500">Choose from sidebar or create new</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <select id="modelSelect"
+                        class="bg-dark-surface2 text-gray-300 px-3 py-2 rounded-lg border border-dark-border text-sm focus:outline-none focus:border-purple-600">
+                        <option value="">Loading models...</option>
+                    </select>
+
+                    <button onclick="deleteCurrentChat()" id="deleteBtn"
+                        class="hidden text-red-400 hover:text-red-300 p-2">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="messagesArea" class="flex-1 overflow-y-auto px-6 py-6 chat-scroll">
+                <div id="emptyState" class="h-full flex items-center justify-center">
+                    <div class="text-center">
+                        <div
+                            class="w-16 h-16 bg-dark-surface2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-comments text-3xl text-gray-600"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold text-white mb-2">No chat selected</h3>
+                        <p class="text-gray-500">Create a new chat or select one from the sidebar</p>
+                    </div>
+                </div>
+
+                <div id="messages" class="hidden max-w-4xl mx-auto space-y-6">
+                    <!-- Messages loaded dynamically -->
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div id="inputArea" class="hidden bg-dark-surface border-t border-dark-border p-6">
+                <div class="max-w-4xl mx-auto">
+                    <div class="relative">
+                        <textarea id="messageInput" placeholder="Message Ollama..." rows="1"
+                            class="w-full bg-dark-surface2 text-gray-200 placeholder-gray-500 rounded-xl px-4 py-3 pr-12 resize-none focus:outline-none focus:ring-2 focus:ring-purple-600 border border-dark-border"
+                            onkeydown="handleInputKeydown(event)"></textarea>
+                        <button id="sendBtn" onclick="sendMessage()"
+                            class="absolute right-2 bottom-2 w-9 h-9 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                        <button id="stopBtn" onclick="stopGeneration()"
+                            class="hidden absolute right-2 bottom-2 w-9 h-9 bg-red-600 hover:bg-red-700 text-white rounded-lg items-center justify-center transition-colors">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2 text-center">AI can make mistakes. Verify important
+                        information.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentChatId = null;
+        let abortController = null;
+        let chats = [];
+        let availableModels = [];
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadModels();
+            loadChats();
+            setupAutoResize();
+        });
+
+        // ========================================================================
+        // MODEL MANAGEMENT
+        // ========================================================================
+
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                const models = await response.json();
+                availableModels = models;
+
+                const select = document.getElementById('modelSelect');
+
+                if (models.length === 0 || models.error) {
+                    select.innerHTML = '<option value="llama3">llama3 (default)</option>';
+                    return;
+                }
+
+                select.innerHTML = models.map((model, index) => {
+                    const name = model.name;
+                    // Format size in GB
+                    const sizeGB = model.size ? (model.size / 1e9).toFixed(1) + 'GB' : '';
+                    const label = sizeGB ? `${name} (${sizeGB})` : name;
+                    return `<option value="${name}" ${index === 0 ? 'selected' : ''}>${label}</option>`;
+                }).join('');
+
+            } catch (error) {
+                console.error('Failed to load models:', error);
+                const select = document.getElementById('modelSelect');
+                select.innerHTML = '<option value="llama3">llama3 (default)</option>';
+            }
+        }
+
+        // ========================================================================
+        // MODEL MANAGEMENT
+        // ========================================================================
+
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                availableModels = await response.json();
+
+                const select = document.getElementById('modelSelect');
+
+                if (availableModels.length === 0) {
+                    select.innerHTML = '<option value="">No models found</option>';
+                    return;
+                }
+
+                select.innerHTML = availableModels.map(model =>
+                    `<option value="${model.name}">${model.name}</option>`
+                ).join('');
+
+            } catch (error) {
+                console.error('Failed to load models:', error);
+                document.getElementById('modelSelect').innerHTML =
+                    '<option value="">Error loading models</option>';
+            }
+        }
+
+        // ========================================================================
+        // CHAT MANAGEMENT
+        // ========================================================================
+
+        async function loadChats() {
+            try {
+                const response = await fetch('/api/chats');
+                chats = await response.json();
+                renderChatList();
+
+                // Auto-select first chat if exists
+                if (chats.length > 0 && !currentChatId) {
+                    selectChat(chats[0].id);
+                }
+            } catch (error) {
+                console.error('Failed to load chats:', error);
+            }
+        }
+
+        function renderChatList() {
+            const chatList = document.getElementById('chatList');
+
+            if (chats.length === 0) {
+                chatList.innerHTML = `
+                    <div class="text-center text-gray-500 text-sm py-8">
+                        <i class="fas fa-inbox text-2xl mb-2"></i>
+                        <p>No chats yet</p>
+                        <p class="text-xs mt-1">Create your first chat</p>
+                    </div>
+                `;
+                return;
+            }
+
+            chatList.innerHTML = chats.map(chat => `
+                <div 
+                    onclick="selectChat(${chat.id})" 
+                    class="chat-item ${currentChatId === chat.id ? 'bg-dark-surface2 border-purple-600' : 'hover:bg-dark-hover'} 
+                    border border-transparent cursor-pointer p-3 rounded-lg mb-1 transition-all group">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-medium text-white truncate">${escapeHtml(chat.title)}</h3>
+                            <p class="text-xs text-gray-500">${formatDate(chat.updated_at)}</p>
+                        </div>
+                        <button 
+                            onclick="event.stopPropagation(); deleteChat(${chat.id})" 
+                            class="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all ml-2">
+                            <i class="fas fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function createNewChat() {
+            try {
+                const response = await fetch('/api/chats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'New Chat' })
+                });
+
+                const newChat = await response.json();
+                chats.unshift(newChat);
+                renderChatList();
+                selectChat(newChat.id);
+            } catch (error) {
+                console.error('Failed to create chat:', error);
+            }
+        }
+
+        async function selectChat(chatId) {
+            currentChatId = chatId;
+            const chat = chats.find(c => c.id === chatId);
+
+            // Update UI
+            document.getElementById('chatTitle').textContent = chat.title;
+            document.getElementById('chatSubtitle').textContent = `Chat #${chat.id}`;
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('messages').classList.remove('hidden');
+            document.getElementById('inputArea').classList.remove('hidden');
+            document.getElementById('deleteBtn').classList.remove('hidden');
+
+            renderChatList();
+            await loadMessages(chatId);
+        }
+
+        async function deleteCurrentChat() {
+            if (!currentChatId) return;
+            if (!confirm('Delete this chat? This cannot be undone.')) return;
+
+            await deleteChat(currentChatId);
+        }
+
+        async function deleteChat(chatId) {
+            try {
+                await fetch(`/api/chats/${chatId}`, { method: 'DELETE' });
+                chats = chats.filter(c => c.id !== chatId);
+
+                if (currentChatId === chatId) {
+                    currentChatId = null;
+                    document.getElementById('emptyState').classList.remove('hidden');
+                    document.getElementById('messages').classList.add('hidden');
+                    document.getElementById('inputArea').classList.add('hidden');
+                    document.getElementById('deleteBtn').classList.add('hidden');
+
+                    if (chats.length > 0) {
+                        selectChat(chats[0].id);
+                    }
+                }
+
+                renderChatList();
+            } catch (error) {
+                console.error('Failed to delete chat:', error);
+            }
+        }
+
+        // ========================================================================
+        // MESSAGE HANDLING
+        // ========================================================================
+
+        async function loadMessages(chatId) {
+            try {
+                const response = await fetch(`/api/chats/${chatId}/messages`);
+                const messages = await response.json();
+                renderMessages(messages);
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+            }
+        }
+
+        function renderMessages(messages) {
+            const container = document.getElementById('messages');
+
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-12">
+                        <i class="fas fa-comment-dots text-4xl mb-3"></i>
+                        <p>Start a conversation</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = messages.map(msg => renderMessage(msg)).join('');
+            scrollToBottom();
+        }
+
+        function renderMessage(msg) {
+            const isUser = msg.role === 'user';
+            return `
+                <div class="flex ${isUser ? 'justify-end' : 'justify-start'}">
+                    <div class="max-w-[80%]">
+                        ${!isUser ? `
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-6 h-6 bg-gradient-to-br from-purple-600 to-blue-600 rounded-md flex items-center justify-center">
+                                <i class="fas fa-robot text-xs text-white"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">Assistant</span>
+                        </div>
+                        ` : ''}
+                        <div class="${isUser ? 'bg-purple-600 text-white' : 'bg-dark-surface2 text-gray-200'} 
+                            px-4 py-3 rounded-2xl ${isUser ? 'rounded-tr-sm' : 'rounded-tl-sm'}">
+                            <div class="text-sm whitespace-pre-wrap">${escapeHtml(msg.content)}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function sendMessage() {
+            if (!currentChatId) return;
+
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Clear input and update UI
+            input.value = '';
+            input.style.height = 'auto';
+            toggleSendButton(false);
+
+            // Add user message to UI
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML += renderMessage({
+                role: 'user',
+                content: message
+            });
+
+            // Add loading indicator
+            const loadingId = 'loading-' + Date.now();
+            messagesContainer.innerHTML += `
+                <div id="${loadingId}" class="flex justify-start">
+                    <div class="max-w-[80%]">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-6 h-6 bg-gradient-to-br from-purple-600 to-blue-600 rounded-md flex items-center justify-center">
+                                <i class="fas fa-robot text-xs text-white"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">Assistant</span>
+                        </div>
+                        <div class="bg-dark-surface2 px-4 py-3 rounded-2xl rounded-tl-sm">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-circle-notch fa-spin text-purple-500"></i>
+                                <span class="text-sm text-gray-400">Thinking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            scrollToBottom();
+
+            // Send to API
+            const model = document.getElementById('modelSelect').value;
+            abortController = new AbortController();
+
+            try {
+                const response = await fetch(`/api/chats/${currentChatId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, model }),
+                    signal: abortController.signal
+                });
+
+                if (!response.ok) throw new Error('Failed to send message');
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+
+                // Remove loading indicator
+                document.getElementById(loadingId).remove();
+
+                // Add assistant message placeholder
+                const assistantId = 'assistant-' + Date.now();
+                messagesContainer.innerHTML += `
+                    <div id="${assistantId}" class="flex justify-start">
+                        <div class="max-w-[80%]">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="w-6 h-6 bg-gradient-to-br from-purple-600 to-blue-600 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-robot text-xs text-white"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">Assistant</span>
+                            </div>
+                            <div class="bg-dark-surface2 text-gray-200 px-4 py-3 rounded-2xl rounded-tl-sm">
+                                <div class="text-sm whitespace-pre-wrap" id="${assistantId}-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const contentDiv = document.getElementById(`${assistantId}-content`);
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+
+                        try {
+                            const data = JSON.parse(line);
+
+                            if (data.error) {
+                                contentDiv.innerHTML = `<span class="text-red-400">Error: ${data.error}</span>`;
+                                break;
+                            }
+
+                            if (data.response) {
+                                fullResponse += data.response;
+                                contentDiv.textContent = fullResponse;
+                                scrollToBottom();
+                            }
+                        } catch (e) {
+                            console.error('Parse error:', e);
+                        }
+                    }
+                }
+
+                // Reload chat list to update timestamp
+                loadChats();
+
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    document.getElementById(loadingId)?.remove();
+                } else {
+                    console.error('Error sending message:', error);
+                    const loadingEl = document.getElementById(loadingId);
+                    if (loadingEl) {
+                        loadingEl.innerHTML = `
+                            <div class="bg-red-900/20 border border-red-900/50 text-red-400 px-4 py-3 rounded-lg">
+                                <i class="fas fa-exclamation-circle mr-2"></i>
+                                Failed to send message
+                            </div>
+                        `;
+                    }
+                }
+            } finally {
+                toggleSendButton(true);
+                abortController = null;
+            }
+        }
+
+        function stopGeneration() {
+            if (abortController) {
+                abortController.abort();
+                toggleSendButton(true);
+            }
+        }
+
+        function toggleSendButton(show) {
+            const sendBtn = document.getElementById('sendBtn');
+            const stopBtn = document.getElementById('stopBtn');
+
+            if (show) {
+                sendBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+            } else {
+                sendBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+            }
+        }
+
+        // ========================================================================
+        // UI HELPERS
+        // ========================================================================
+
+        function setupAutoResize() {
+            const input = document.getElementById('messageInput');
+            input.addEventListener('input', function () {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+            });
+        }
+
+        function handleInputKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            const area = document.getElementById('messagesArea');
+            setTimeout(() => area.scrollTop = area.scrollHeight, 100);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            if (minutes < 1) return 'Just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            if (hours < 24) return `${hours}h ago`;
+            if (days < 7) return `${days}d ago`;
+            return date.toLocaleDateString();
+        }
+    </script>
+</body>
+
+</html>
